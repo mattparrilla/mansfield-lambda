@@ -1,0 +1,11 @@
+{
+  "name": "mansfield-lambda",
+  "version": "1.0.0",
+  "main": "index.js",
+  "license": "MIT",
+  "dependencies": {
+    "csv-parse": "^1.2.3",
+    "csv-stringify": "^1.0.4",
+    "node-fetch": "^1.7.3"
+  }
+}
