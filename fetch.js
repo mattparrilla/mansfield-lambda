@@ -7,6 +7,8 @@ const date = new Date();
 const month = date.getMonth();
 const year = date.getFullYear();
 
+const LOCAL_CSV_FILE = './snowdepth.csv';
+
 // fetch and parse snowfall data
 // requesting a single year gets you the season
 // eg. requesting 2017 on 10/1 gets you only the fall, not the previous
@@ -32,7 +34,7 @@ function readFile(filename, encoding = 'utf8') {
 
 // read local csv
 async function readCSV() {
-    const csvText = await readFile('./snowdepth.csv', 'utf8');
+    const csvText = await readFile(LOCAL_CSV_FILE, 'utf8');
     const parsed = parse(csvText, { columns: true });
     return parsed;
 }
@@ -78,10 +80,11 @@ async function start() {
     const historicalLatestYear = historicalLatestData.year;
     const currentSeasonDataYear = currentSeasonData.year;
 
-    if (historicalLatestYear !== currentSeasonDataYear) {
+    // only write new csv if data is stale
+    if (JSON.stringify(historicalLatestYear) !== JSON.stringify(currentSeasonDataYear)) {
         historicalData.push(currentSeasonData);
         const data = await stringifyObjectAsCsv(historicalData);
-        fs.writeFile('./test.csv', data, (err) => {
+        fs.writeFile(LOCAL_CSV_FILE, data, (err) => {
             if (err) console.log(err);
         });
     }
