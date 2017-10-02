@@ -7,6 +7,7 @@ const date = new Date();
 const month = date.getMonth();
 const year = date.getFullYear();
 
+// TODO: read from s3
 const LOCAL_CSV_FILE = './snowdepth.csv';
 
 // fetch and parse snowfall data
