@@ -4,7 +4,8 @@
   "main": "index.js",
   "license": "MIT",
   "scripts": {
-    "prettier": "prettier --write index.js"
+    "prettier": "prettier --write src/*.js",
+    "transpile": "babel src/index.js --out-file dist/index.js"
   },
   "dependencies": {
     "aws-sdk": "^2.130.0",
@@ -13,6 +14,9 @@
     "node-fetch": "^1.7.3"
   },
   "devDependencies": {
+    "babel-cli": "^6.26.0",
+    "babel-plugin-transform-object-rest-spread": "^6.26.0",
+    "babel-preset-es2017": "^6.24.1",
     "prettier": "1.7.4"
   }
 }
