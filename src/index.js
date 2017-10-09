@@ -110,7 +110,7 @@ function writeSnowDepthToS3(data) {
   s3.putObject(writeParams, console.log);
 }
 
-async function start() {
+async function main() {
   const currentSeasonData = munge(await getSnowfallData());
   const historicalData = await readCSV();
   const historicalLatestData = historicalData[historicalData.length - 1];
@@ -129,4 +129,4 @@ async function start() {
   }
 }
 
-start();
+exports.handler = main;
