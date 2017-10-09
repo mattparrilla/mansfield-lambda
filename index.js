@@ -7,8 +7,8 @@ const AWS = require("aws-sdk");
 AWS.config.update({ region: "us-east-1" });
 const s3 = new AWS.S3();
 var s3Params = {
-  Bucket: "mp-interesting-data",
-  Key: "snowdepth.csv"
+  Bucket: "matthewparrilla.com",
+  Key: "snowDepth.csv"
 };
 
 const date = new Date();
@@ -104,7 +104,8 @@ function stringifyObjectAsCsv(object) {
 function writeSnowDepthToS3(data) {
   const writeParams = {
     ...s3Params,
-    Body: data
+    Body: data,
+    ACL: "public-read"
   };
   s3.putObject(writeParams, console.log);
 }
