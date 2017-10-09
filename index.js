@@ -1,14 +1,14 @@
 const fetch = require("node-fetch");
 const parse = require("csv-parse/lib/sync");
 const stringify = require("csv-stringify");
-const AWS = require('aws-sdk');
+const AWS = require("aws-sdk");
 
 // set up AWS stuff
-AWS.config.update({ region: 'us-east-1' });
+AWS.config.update({ region: "us-east-1" });
 const s3 = new AWS.S3();
 var s3Params = {
   Bucket: "mp-interesting-data",
-  Key: "snowdepth.csv",
+  Key: "snowdepth.csv"
 };
 
 const date = new Date();
@@ -33,7 +33,6 @@ async function getSnowfallData() {
   return parsedData;
 }
 
-
 // async friendly getItem from DynamoDB
 function getLastSavedDate() {
   return new Promise((fulfill, reject) => {
@@ -47,8 +46,6 @@ function getLastSavedDate() {
 // determine if ski-vt has fresh data by diffing last updated from dynamo
 async function updateRequired() {
   // TODO: write this
-
-
 }
 
 function getSnowDepthFromS3() {
@@ -107,7 +104,7 @@ function stringifyObjectAsCsv(object) {
 function writeSnowDepthToS3(data) {
   const writeParams = {
     ...s3Params,
-    Body: data,
+    Body: data
   };
   s3.putObject(writeParams, console.log);
 }
