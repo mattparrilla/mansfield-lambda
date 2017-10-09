@@ -1,14 +1,19 @@
-const fs = require("fs");
 const fetch = require("node-fetch");
 const parse = require("csv-parse/lib/sync");
 const stringify = require("csv-stringify");
+const AWS = require('aws-sdk');
+
+// set up AWS stuff
+AWS.config.update({ region: 'us-east-1' });
+const s3 = new AWS.S3();
+var s3Params = {
+  Bucket: "mp-interesting-data",
+  Key: "snowdepth.csv",
+};
 
 const date = new Date();
 const month = date.getMonth();
 const year = date.getFullYear();
-
-// TODO: read from s3
-const LOCAL_CSV_FILE = "./snowdepth.csv";
 
 // fetch and parse snowfall data
 // requesting a single year gets you the season
@@ -28,19 +33,36 @@ async function getSnowfallData() {
   return parsedData;
 }
 
-// async friendly readFile
-function readFile(filename, encoding = "utf8") {
+
+// async friendly getItem from DynamoDB
+function getLastSavedDate() {
   return new Promise((fulfill, reject) => {
-    fs.readFile(filename, encoding, (err, res) => {
+    dynamodb.getItem(lastUpdatedParams, (err, { Item: { value: { S } } }) => {
       if (err) reject(err);
-      else fulfill(res);
+      else fulfill(S);
+    });
+  });
+}
+
+// determine if ski-vt has fresh data by diffing last updated from dynamo
+async function updateRequired() {
+  // TODO: write this
+
+
+}
+
+function getSnowDepthFromS3() {
+  return new Promise((fulfill, reject) => {
+    s3.getObject(s3Params, (err, { Body }) => {
+      if (err) reject(err);
+      else fulfill(Body);
     });
   });
 }
 
 // read local csv
 async function readCSV() {
-  const csvText = await readFile(LOCAL_CSV_FILE, "utf8");
+  const csvText = await getSnowDepthFromS3();
   const parsed = parse(csvText, { columns: true });
   return parsed;
 }
@@ -82,6 +104,14 @@ function stringifyObjectAsCsv(object) {
   });
 }
 
+function writeSnowDepthToS3(data) {
+  const writeParams = {
+    ...s3Params,
+    Body: data,
+  };
+  s3.putObject(writeParams, console.log);
+}
+
 async function start() {
   const currentSeasonData = munge(await getSnowfallData());
   const historicalData = await readCSV();
@@ -97,9 +127,7 @@ async function start() {
   ) {
     historicalData.push(currentSeasonData);
     const data = await stringifyObjectAsCsv(historicalData);
-    fs.writeFile(LOCAL_CSV_FILE, data, err => {
-      if (err) console.log(err);
-    });
+    writeSnowDepthToS3(data);
   }
 }
 
