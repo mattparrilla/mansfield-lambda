@@ -111,11 +111,7 @@ async function main() {
 
   // only write new csv if data is stale
   console.log('Checking if data is stale');
-  if (
-    // TODO: change this to check data, not year
-    JSON.stringify(historicalLatestYear) !==
-    JSON.stringify(currentSeasonDataYear)
-  ) {
+  if (historicalLatestData.length !== currentSeasonData.length) {
     console.log('Data is stale, updating');
     historicalData.push(currentSeasonData);
     const data = await stringifyObjectAsCsv(historicalData);
