@@ -33,21 +33,6 @@ async function getSnowfallData() {
   return parsedData;
 }
 
-// async friendly getItem from DynamoDB
-function getLastSavedDate() {
-  return new Promise((fulfill, reject) => {
-    dynamodb.getItem(lastUpdatedParams, (err, { Item: { value: { S } } }) => {
-      if (err) reject(err);
-      else fulfill(S);
-    });
-  });
-}
-
-// determine if ski-vt has fresh data by diffing last updated from dynamo
-async function updateRequired() {
-  // TODO: write this
-}
-
 function getSnowDepthFromS3() {
   return new Promise((fulfill, reject) => {
     s3.getObject(s3Params, (err, { Body }) => {
@@ -111,21 +96,34 @@ function writeSnowDepthToS3(data) {
 }
 
 async function main() {
+  console.log('Get and munge snowfall data');
   const currentSeasonData = munge(await getSnowfallData());
+  console.log('Successfully got and munged snowfall data');
+  console.log('Read CSV');
   const historicalData = await readCSV();
+  console.log('Successfully read CSV');
+  console.log('Get latest data');
   const historicalLatestData = historicalData[historicalData.length - 1];
+  console.log('Successfully got latest data');
 
   const historicalLatestYear = historicalLatestData.year;
   const currentSeasonDataYear = currentSeasonData.year;
 
   // only write new csv if data is stale
+  console.log('Checking if data is stale');
   if (
+    // TODO: change this to check data, not year
     JSON.stringify(historicalLatestYear) !==
     JSON.stringify(currentSeasonDataYear)
   ) {
+    console.log('Data is stale, updating');
     historicalData.push(currentSeasonData);
     const data = await stringifyObjectAsCsv(historicalData);
+    console.log('Write new data to S3');
     writeSnowDepthToS3(data);
+    console.log('Successfully wrote data to s3');
+  } else {
+    console.log('Data is fresh, no need to update');
   }
 }
 

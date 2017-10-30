@@ -6,7 +6,7 @@
   "scripts": {
     "prettier": "prettier --write src/*.js",
     "transpile": "babel src/index.js --out-file index.js",
-    "build": "yarn install && yarn transpile && rm -rf node-modules && yarn install --prod"
+    "build": "yarn install && yarn transpile && rm -rf node-modules && yarn install --prod && zip -r ../mansfield-lambda.zip *"
   },
   "dependencies": {
     "aws-sdk": "^2.130.0",
