@@ -66,7 +66,7 @@ function munge(sourceData) {
 
       return {
         ...season,
-        [newDateLabel]: reading.Depth ? parseInt(reading.Depth, 10) : 0
+        [newDateLabel]: reading.Depth
       };
     },
     { year: seasonLabel }
@@ -96,39 +96,43 @@ function writeSnowDepthToS3(data) {
 }
 
 async function main() {
-  console.log('\nGet and munge snowfall data');
+  console.log("\nGet and munge snowfall data");
   const currentSeasonData = munge(await getSnowfallData());
-  console.log('\nSuccessfully got and munged snowfall data');
-  console.log('\nRead CSV');
+  console.log("\nSuccessfully got and munged snowfall data");
+  console.log("\nRead CSV");
   const snowFallData = await readCSV();
-  console.log('\nSuccessfully read CSV');
-  console.log('\nGet latest data');
+  console.log("\nSuccessfully read CSV");
+  console.log("\nGet latest data");
   const historicalLatestData = snowFallData[snowFallData.length - 1];
-  console.log('\nSuccessfully got latest data');
+  console.log("\nSuccessfully got latest data");
 
   const historicalLatestYear = historicalLatestData.year;
   const currentSeasonDataYear = currentSeasonData.year;
 
-  const updateData = freshData => {
+  async function updateData(freshData) {
     const data = await stringifyObjectAsCsv(freshData);
-    console.log('Write new data to S3');
+    console.log("Write new data to S3");
     writeSnowDepthToS3(data);
-    console.log('Successfully wrote data to s3');
-  };
+    console.log("Successfully wrote data to s3");
+  }
+
   // only write new csv if data is stale
-  console.log('\nChecking if data is stale');
+  console.log("\nChecking if data is stale");
   const updatedData = snowFallData;
-  if ( historicalLatestYear !== currentSeasonDataYear) {
-    console.log('\nIt\' a new year, updating');
+  if (historicalLatestYear !== currentSeasonDataYear) {
+    console.log("\nIt' a new year, updating");
     snowFallData.push(currentSeasonData); // add new row for new season
     updateData(snowFallData);
-  } else if (JSON.stringify(historicalLatestData) !== JSON.stringify(currentSeasonData)) {
-    console.log('\nThere\'s new snowfall data, updating');
+  } else if (
+    JSON.stringify(historicalLatestData) !== JSON.stringify(currentSeasonData)
+  ) {
+    console.log("\nThere's new snowfall data, updating");
     snowFallData.splice(-1, 1, currentSeasonData); // update last row with latest data
     updateData(snowFallData);
   } else {
-    console.log('Data is fresh, no need to update');
+    console.log("Data is fresh, no need to update");
   }
 }
 
+main()
 exports.handler = main;
