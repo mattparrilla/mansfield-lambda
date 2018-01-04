@@ -134,5 +134,4 @@ async function main() {
   }
 }
 
-main()
 exports.handler = main;
