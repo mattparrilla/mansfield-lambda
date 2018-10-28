@@ -57,16 +57,23 @@ function munge(sourceData) {
       : `${year - 1}-${year}`;
 
   return sourceData.reduce(
-    (season, reading) => {
+    (season, reading, index) => {
       const newDateLabel = reading.Date
         .split("-")
         .slice(1)
         .map(n => parseInt(n, 10)) // remove zero padding
         .join("/");
 
+      // if depth is zero and previous depth is greater than 10 or null
+      // assume zero reading is garbage, replace with null
+      const previousDepth = index ? sourceData[index - 1].Depth : null;
+      if (reading.Depth == 0 && (previousDepth > 10 || previousDepth === null)) {
+        reading.Depth = null;
+      }
+
       return {
         ...season,
-        [newDateLabel]: reading.Depth
+        [newDateLabel]: reading.Depth // reading.Depth side effected above
       };
     },
     { year: seasonLabel }
@@ -133,5 +140,6 @@ async function main() {
     console.log("Data is fresh, no need to update");
   }
 }
+main();
 
 exports.handler = main;
