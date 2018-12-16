@@ -20,9 +20,11 @@ m = date.month
 season_key = "%d-%d" % (y if m > 8 else y - 1, y + 1 if m > 8 else y)
 
 
+# @app.route('/')
+# def index():
 @app.schedule('cron(0 12-18/2 * 1,2,3,4,5,9,10,11 ? *)')
-def index():
-    existing_data = s3.Object(bucket_name='matthewparrilla.com', key='newSnowDepth.csv')\
+def index(event):
+    existing_data = s3.Object(bucket_name='matthewparrilla.com', key='snowDepth.csv')\
         .get()\
         .get('Body')\
         .read()
@@ -55,7 +57,7 @@ def index():
         f.write(new_csv.getvalue())
 
     print "Pushing to S3"
-    s3.Object("matthewparrilla.com", "newSnowDepth.csv").put(
+    s3.Object("matthewparrilla.com", "snowDepth.csv").put(
         Body=compressed_csv.getvalue(),
         ContentEncoding='gzip',
         ACL="public-read")
@@ -89,3 +91,18 @@ def get_year_from_uvm():
         _, month, day = date.split('-')
         depth_dict["%d/%d" % (int(month), int(day))] = depth
     return depth_dict
+
+
+@app.route("/dummy")
+def dummy():
+    """Hack used to get chalice to generate proper IAM b/c of bug related to
+       boto3.resource not triggering correct IAM policy:
+       https://github.com/aws/chalice/issues/118#issuecomment-298490541
+    """
+    ddb = boto3.client("s3")
+    try:
+        ddb.get_object(Bucket="matthewparrilla.com")
+        ddb.put_object(Bucket="matthewparrilla.com")
+        ddb.put_object_acl(Bucket="matthewparrilla.com", ACL="public-read")
+    except:
+        print "move along"
