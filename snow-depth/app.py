@@ -1,4 +1,4 @@
-from chalice import Chalice
+from chalice import Chalice, Rate
 from datetime import datetime
 import boto3
 import requests
@@ -20,10 +20,10 @@ m = date.month
 season_key = "%d-%d" % (y if m > 8 else y - 1, y + 1 if m > 8 else y)
 
 
-# @app.route('/')
-# def index():
-@app.schedule('cron(0 12-18/2 * 1,2,3,4,5,9,10,11 ? *)')
-def index(event):
+# @app.schedule(Rate(1, unit=Rate.HOURS))
+# def index(event):
+@app.route("/")
+def index():
     existing_data = s3.Object(bucket_name='matthewparrilla.com', key='snowDepth.csv')\
         .get()\
         .get('Body')\
@@ -35,21 +35,25 @@ def index(event):
     # make copy of original list so we can compare after we modify
     data = copy.deepcopy(s3_data)
 
-    print "Updating data"
+    print "Checking if we should update data"
     season_idx = next(i for i, row in enumerate(data) if row[0] == season_key)
     for i, item in enumerate(data[season_idx]):
         key = data[0][i]  # first row of data is headers
         data[season_idx][i] = current_season_on_uvm.get(key, '')
 
-    if data == s3_data:
+    munged_data = munge_data(data)
+
+    if munged_data == s3_data:
         print "No new data. Exiting"
         return False
+    else:
+        print "Fresh data. Time for an update"
 
     # write list to csv string
     print "Writing data to CSV string"
     new_csv = StringIO.StringIO()
     writer = csv.writer(new_csv, quoting=csv.QUOTE_NONNUMERIC)
-    writer.writerows(data)
+    writer.writerows(munged_data)
 
     print "Compressing data"
     compressed_csv = StringIO.StringIO()
@@ -70,12 +74,12 @@ def csv_string_to_list(csv_as_string):
 
 def get_year_from_uvm():
 
-    print "Requesting data from UVM"
     # This might break on Jan 1
     url = ("http://waw.w3.uvm.edu/empactdata/gendateplot.php?"
            "table=SummitStation&title=Mount+Mansfield+Summit+Station&"
            "xskip=7&xparam=Date&yparam=Depth&year%s=%d&csv=1&totals=0"
           ) % ("%5B%5D", y if m > 8 else y - 1)
+    print "Requesting data from UVM at URL: %s" % url
     r = requests.get(url)
 
     # data is returned inside of a <pre> element
@@ -86,9 +90,23 @@ def get_year_from_uvm():
     just_data = [i for i in csv_string_to_list(content)
         if len(i) > 1 and re.match("^\d{4}-", i[0])]
 
-    # TODO: munge data here
+    previous_depth = 0
     for date, depth in just_data:
         _, month, day = date.split('-')
+        print "\n%s | %s" % (date, depth)
+
+        try:
+            depth = int(float(depth))
+            if previous_depth - depth > 10:
+                print "Suspected bad value at %s of %d" % (date, depth)
+                continue
+        except:
+            print "Could not convert value at %s to depth" % date
+            continue
+
+        previous_depth = depth
+
+        # add to dictionary to be returned
         depth_dict["%d/%d" % (int(month), int(day))] = depth
     return depth_dict
 
