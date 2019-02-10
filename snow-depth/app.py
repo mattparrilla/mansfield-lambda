@@ -20,30 +20,32 @@ m = date.month
 season_key = "%d-%d" % (y if m > 8 else y - 1, y + 1 if m > 8 else y)
 
 
-# @app.schedule(Rate(1, unit=Rate.HOURS))
-# def index(event):
-@app.route("/")
-def index():
+# @app.route("/")
+# def index():
+@app.schedule(Rate(1, unit=Rate.HOURS))
+def index(event):
     existing_data = s3.Object(bucket_name='matthewparrilla.com', key='snowDepth.csv')\
         .get()\
         .get('Body')\
         .read()
     uncompressed_file = gzip.GzipFile(fileobj=StringIO.StringIO(existing_data)).read()
-    s3_data = csv_string_to_list(uncompressed_file)  # list of lists [['9/1', 0], ...]
+
+    # csv string returns a list of lists [['9/1', 0], ...]
+    s3_data = [r for r in csv_string_to_list(uncompressed_file) if len(r) > 0]
     current_season_on_uvm = get_year_from_uvm()
 
     # make copy of original list so we can compare after we modify
-    data = copy.deepcopy(s3_data)
+    # clear out empty rows
+    data = [r for r in copy.deepcopy(s3_data) if len(r) > 0]
 
     print "Checking if we should update data"
     season_idx = next(i for i, row in enumerate(data) if row[0] == season_key)
     for i, item in enumerate(data[season_idx]):
         key = data[0][i]  # first row of data is headers
-        data[season_idx][i] = current_season_on_uvm.get(key, '')
+        # grab depth at date, convert to string for comparison
+        data[season_idx][i] = str(current_season_on_uvm.get(key, ''))
 
-    munged_data = munge_data(data)
-
-    if munged_data == s3_data:
+    if data == s3_data:
         print "No new data. Exiting"
         return False
     else:
@@ -53,7 +55,7 @@ def index():
     print "Writing data to CSV string"
     new_csv = StringIO.StringIO()
     writer = csv.writer(new_csv, quoting=csv.QUOTE_NONNUMERIC)
-    writer.writerows(munged_data)
+    writer.writerows(data)
 
     print "Compressing data"
     compressed_csv = StringIO.StringIO()
@@ -84,17 +86,21 @@ def get_year_from_uvm():
 
     # data is returned inside of a <pre> element
     content = r.content.replace("<pre>", "").replace("</pre>", "")
-    depth_dict = {"year": season_key}
 
     # filter out first row (name of season) and empty rows
     just_data = [i for i in csv_string_to_list(content)
         if len(i) > 1 and re.match("^\d{4}-", i[0])]
 
-    previous_depth = 0
-    for date, depth in just_data:
-        _, month, day = date.split('-')
-        print "\n%s | %s" % (date, depth)
+    depth_dict = munge_data(just_data)
+    depth_dict["year"] = season_key
+    return depth_dict
 
+
+def munge_data(data):
+    depth_dict = {}
+    previous_depth = 0
+    for date, depth in data:
+        _, month, day = date.split('-')
         try:
             depth = int(float(depth))
             if previous_depth - depth > 10:
