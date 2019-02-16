@@ -15,19 +15,14 @@ app.debug = True
 s3 = boto3.resource('s3')
 
 
-
-@app.route('/')
-def index():
-
-# @app.schedule(Rate(1, unit=Rate.HOURS))
-# def index(event):
-
+# @app.route('/')
+# def index():
+@app.schedule(Rate(1, unit=Rate.HOURS))
+def index(event):
     # get data from NWS text report
     nws_data = parse_text_report()
     snow_depth = nws_data["snow_depth"]
     date = nws_data["date"]  # not safely getting intentionally
-    date = datetime.today()
-    snow_depth = 52
 
     # exit if we don't get a reported depth
     if snow_depth != 0 and not snow_depth:
