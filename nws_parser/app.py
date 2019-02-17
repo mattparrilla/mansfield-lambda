@@ -15,14 +15,39 @@ app.debug = True
 s3 = boto3.resource('s3')
 
 
-# @app.route('/')
-# def index():
-@app.schedule(Rate(1, unit=Rate.HOURS))
-def index(event):
-    # get data from NWS text report
-    nws_data = parse_text_report()
-    snow_depth = nws_data["snow_depth"]
-    date = nws_data["date"]  # not safely getting intentionally
+@app.route('/')
+def index():
+# @app.schedule(Rate(1, unit=Rate.HOURS))
+# def index(event):
+    url = "https://forecast.weather.gov/product.php?site=BTV&issuedby=BTV&product=HYD&format=CI&version=1"
+    r = requests.get(url)
+    html = r.text
+    parsed_html = BeautifulSoup(html, 'html.parser')
+    pre = parsed_html.body.find('pre', attrs={'class': 'glossaryProduct'})
+
+    date = datetime.today()
+    snow_idx = 0
+    snow_depth = None
+    for line in pre.get_text().split('\n'):
+        try:
+            # date is of format "1000 AM EST Sun Feb 10 2019"
+            date = datetime.strptime(line, "%I%M %p %Z %a %b %d %Y")
+            print "Date on NWS report: %s" % date
+            continue
+        except ValueError:
+            # Most lines will throw value error, don't even log
+            pass
+        if line.startswith("Station") and "Snow" in line:
+            snow_idx = line.index("Snow")
+            continue
+        if line.startswith("Mount Mansfield"):
+            try:
+                depth_str = line[snow_idx:snow_idx + 4]
+                print depth_str
+                snow_depth = int(depth_str)
+                print snow_depth
+            except ValueError:
+                print "Error trying to convert string: %s to int" % depth_str
 
     # exit if we don't get a reported depth
     if snow_depth != 0 and not snow_depth:
@@ -38,10 +63,11 @@ def index(event):
     uncompressed_file = gzip.GzipFile(fileobj=StringIO.StringIO(existing_data)).read()
 
     # csv string returns a list of lists [['9/1', 0], ...]
-    data = [r for r in csv_string_to_list(uncompressed_file) if len(r) > 0]
+    data = [i for i in csv_string_to_list(uncompressed_file) if len(i) > 0]
 
     # figure out what cell to update
     date_string = date.strftime("%-m/%-d")
+    print "Date to update: %s" % date_string
     date_index = data[0].index(date_string)
     year = date.year
     season = "%d-%d" % (
@@ -63,10 +89,7 @@ def index(event):
                 'Body': {
                     'Text': {
                         'Charset': CHARSET,
-                        'Data': """
-                            Date: %s
-                            Depth: %d
-                            """ % (date.strftime("%D"), snow_depth)
+                        'Data': "Date: %s Depth: %d" % (date_string, snow_depth)
 
                     },
                 },
@@ -111,46 +134,6 @@ def index(event):
         ACL="public-read")
 
     return "Great success!"
-
-
-def parse_text_report():
-    url = "https://forecast.weather.gov/product.php?site=BTV&issuedby=BTV&product=HYD&format=CI&version=1&glossary=0&fbclid=IwAR3IA7pAQ0IG6PAH6m03ahAWPGCSfcq8uObm0wuzvZ19IdOkrGXXbx_y9vc"
-    r = requests.get(url)
-    html = r.text
-    parsed_html = BeautifulSoup(html, 'html.parser')
-    pre = parsed_html.body.find('pre', attrs={'class': 'glossaryProduct'})
-
-    date = datetime.today()
-    snow_idx = 0
-    snow_depth = None
-    for line in pre.get_text().split('\n'):
-        try:
-            # date is of format "1000 AM EST Sun Feb 10 2019"
-            date = datetime.strptime(line, "%I%M %p %Z %a %b %d %Y")
-            print date
-            continue
-        except ValueError:
-            # Most lines will throw value error, don't even log
-            pass
-        if line.startswith("Station") and "Snow" in line:
-            snow_idx = line.index("Snow")
-            continue
-        if line.startswith("Mount Mansfield"):
-            try:
-                depth_str = line[snow_idx:snow_idx + 4]
-                print depth_str
-                snow_depth = int(depth_str)
-                print snow_depth
-            except ValueError:
-                print "Error trying to convert string: %s to int" % depth_str
-
-    if not snow_depth:
-        print "NWS website didn't have 'Mount Mansfield' row. Exiting"
-
-    return {
-        "date": date,
-        "snow_depth": snow_depth,
-    }
 
 
 @app.route("/dummy")
