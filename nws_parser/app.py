@@ -15,10 +15,10 @@ app.debug = True
 s3 = boto3.resource('s3')
 
 
-@app.route('/')
-def index():
-# @app.schedule(Rate(1, unit=Rate.HOURS))
-# def index(event):
+# @app.route('/')
+# def index():
+@app.schedule(Rate(1, unit=Rate.HOURS))
+def index(event):
     url = "https://forecast.weather.gov/product.php?site=BTV&issuedby=BTV&product=HYD&format=CI&version=1"
     r = requests.get(url)
     html = r.text
