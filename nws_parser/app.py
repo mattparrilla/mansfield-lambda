@@ -74,10 +74,42 @@ def index(event):
         (year, year + 1) if date.month > 7 else (year - 1, year))
     season_index = next((data.index(row) for row in data if row[0] == season), len(data))
 
+    # --------------BEGIN EMAIL NOTIFICATION-----------------------------------
+    try:
+        SENDER = "Mansfield <support@bugbucket.io>"
+        CHARSET = "UTF-8"
+        client = boto3.client("ses")
+
+        # Provide the contents of the email.
+        client.send_email(
+            Destination={
+                'ToAddresses': ['matthew.parrilla@gmail.com'],
+            },
+            Message={
+                'Body': {
+                    'Text': {
+                        'Charset': CHARSET,
+                        'Data': "Date: %s Depth: %d" % (date_string, snow_depth)
+
+                    },
+                },
+                'Subject': {
+                    'Charset': CHARSET,
+                    'Data': "mansfield snow depth",
+                },
+            },
+            Source=SENDER,
+        )
+        print("Email sent!")
+
+    # Display an error if something goes wrong.
+    except ClientError as e:
+        print(e.response['Error']['Message'])
+    # --------------END EMAIL NOTIFICATION-------------------------------------
+
     # check if we need to update data
     if data[season_index][date_index] == str(snow_depth):
         print "No new data. Exiting"
-        email("No new data")
         return False
     else:
         # update copy of data
@@ -101,7 +133,6 @@ def index(event):
         ContentEncoding='gzip',
         ACL="public-read")
 
-    email("Date: %s Depth: %d" % (date_string, snow_depth))
     return "Great success!"
 
 
@@ -122,37 +153,3 @@ def dummy():
 
 def csv_string_to_list(csv_as_string):
     return list(csv.reader(csv_as_string.split("\n"), delimiter=","))
-
-
-def email(message):
-    try:
-        SENDER = "Mansfield <support@bugbucket.io>"
-        CHARSET = "UTF-8"
-        client = boto3.client("ses")
-
-        # Provide the contents of the email.
-        client.send_email(
-            Destination={
-                'ToAddresses': ['matthew.parrilla@gmail.com'],
-            },
-            Message={
-                'Body': {
-                    'Text': {
-                        'Charset': CHARSET,
-                        'Data': message,
-
-                    },
-                },
-                'Subject': {
-                    'Charset': CHARSET,
-                    'Data': "mansfield snow depth",
-                },
-            },
-            Source=SENDER,
-        )
-        print("Email sent!")
-
-    # Display an error if something goes wrong.
-    except ClientError as e:
-        print(e.response['Error']['Message'])
-    # --------------END EMAIL NOTIFICATION-------------------------------------
