@@ -25,7 +25,7 @@ def index(event):
     parsed_html = BeautifulSoup(html, 'html.parser')
     pre = parsed_html.body.find('pre', attrs={'class': 'glossaryProduct'})
 
-    date = datetime.today()
+    date = None
     snow_idx = 0
     snow_depth = None
     for line in pre.get_text().split('\n'):
@@ -48,6 +48,11 @@ def index(event):
                 print snow_depth
             except ValueError:
                 print "Error trying to convert string: %s to int" % depth_str
+
+    # exit if date is none
+    if not date:
+        print "Unable to parse date from NWS report"
+        return "No date found"
 
     # exit if we don't get a reported depth
     if snow_depth != 0 and not snow_depth:
