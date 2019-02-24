@@ -1,7 +1,7 @@
 from chalice import Chalice, Rate
+import arrow
 from botocore.exceptions import ClientError
 from bs4 import BeautifulSoup
-from datetime import datetime
 import requests
 import boto3
 import csv
@@ -31,10 +31,10 @@ def index(event):
     for line in pre.get_text().split('\n'):
         try:
             # date is of format "1000 AM EST Sun Feb 10 2019"
-            date = datetime.strptime(line, "%I%M %p %Z %a %b %d %Y")
-            print "Date on NWS report: %s" % date
+            date = arrow.get(line, "MMM D YYYY").datetime
+            print "Date on NWS report is: %s" % date
             continue
-        except ValueError:
+        except arrow.parser.ParserError as e:
             # Most lines will throw value error, don't even log
             pass
         if line.startswith("Station") and "Snow" in line:
