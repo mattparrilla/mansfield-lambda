@@ -61,7 +61,7 @@ def index(event):
 
     # get current data from s3
     existing_data = s3.Object(bucket_name='matthewparrilla.com',
-        key='newSnowDepth.csv')\
+        key='snowDepth.csv')\
         .get()\
         .get('Body')\
         .read()
@@ -133,7 +133,7 @@ def index(event):
         f.write(new_csv.getvalue())
 
     print "Pushing to S3"
-    s3.Object("matthewparrilla.com", "newSnowDepth.csv").put(
+    s3.Object("matthewparrilla.com", "snowDepth.csv").put(
         Body=compressed_csv.getvalue(),
         ContentEncoding='gzip',
         ACL="public-read")
