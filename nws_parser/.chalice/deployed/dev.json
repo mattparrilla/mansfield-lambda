@@ -2,30 +2,30 @@
   "schema_version": "2.0",
   "resources": [
     {
-      "role_name": "snow-depth-dev",
-      "role_arn": "arn:aws:iam::884063687224:role/snow-depth-dev",
+      "role_name": "nws_parser-dev",
+      "role_arn": "arn:aws:iam::884063687224:role/nws_parser-dev",
       "name": "default-role",
       "resource_type": "iam_role"
     },
     {
-      "lambda_arn": "arn:aws:lambda:us-east-1:884063687224:function:snow-depth-dev-index",
+      "lambda_arn": "arn:aws:lambda:us-east-1:884063687224:function:nws_parser-dev-index",
       "name": "index",
       "resource_type": "lambda_function"
     },
     {
-      "rule_name": "snow-depth-dev-index-event",
+      "rule_name": "nws_parser-dev-index-event",
       "name": "index-event",
       "resource_type": "cloudwatch_event"
     },
     {
-      "lambda_arn": "arn:aws:lambda:us-east-1:884063687224:function:snow-depth-dev",
+      "lambda_arn": "arn:aws:lambda:us-east-1:884063687224:function:nws_parser-dev",
       "name": "api_handler",
       "resource_type": "lambda_function"
     },
     {
       "name": "rest_api",
-      "rest_api_id": "9f2idqsi71",
-      "rest_api_url": "https://9f2idqsi71.execute-api.us-east-1.amazonaws.com/api/",
+      "rest_api_id": "oymnjkiff4",
+      "rest_api_url": "https://oymnjkiff4.execute-api.us-east-1.amazonaws.com/api/",
       "resource_type": "rest_api"
     }
   ],
