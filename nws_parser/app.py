@@ -1,7 +1,8 @@
+from __future__ import print_function
 from chalice import Chalice, Rate
-import arrow
-from botocore.exceptions import ClientError
 from bs4 import BeautifulSoup
+from datetime import datetime
+import arrow
 import requests
 import boto3
 import csv
@@ -11,8 +12,82 @@ import gzip
 app = Chalice(app_name='nws_parser')
 app.debug = True
 
+TEMPERATURE_CSV = "mansfield_temperature.csv"
+SNOW_DEPTH_CSV = "snowDepth.csv"
+
 
 s3 = boto3.resource('s3')
+
+
+def update_temp(max_temp, min_temp, cur_temp, date):
+    if max_temp is None:
+        print("No temps in current text report")
+        return
+    print("Updating temperature data")
+
+    data = s3.Object(bucket_name='matthewparrilla.com',
+        key=TEMPERATURE_CSV).get().get('Body').read().decode("ascii")
+    data += "{},{},{},{},{}\n".format(datetime.now().isoformat(),
+        date,
+        max_temp,
+        min_temp,
+        cur_temp)
+
+    s3.Object("matthewparrilla.com", TEMPERATURE_CSV).put(
+        Body=data)
+
+
+def update_snow_depth(snow_depth, date):
+    # exit if we don't get a reported depth
+    if snow_depth is None:
+        print("No depth in current text report")
+        return
+
+    # get current data from s3
+    existing_data = s3.Object(bucket_name='matthewparrilla.com',
+        key=SNOW_DEPTH_CSV)\
+        .get()\
+        .get('Body')\
+        .read()
+    uncompressed_file = gzip.GzipFile(fileobj=StringIO.StringIO(existing_data)).read()
+
+    # csv string returns a list of lists [['9/1', 0], ...]
+    data = [i for i in csv_string_to_list(uncompressed_file) if len(i) > 0]
+
+    # figure out what cell to update
+    date_string = date.strftime("%-m/%-d")
+    print("Date to update: {}".format(date_string))
+    date_index = data[0].index(date_string)
+    year = date.year
+    season = "%d-%d" % (
+        (year, year + 1) if date.month > 7 else (year - 1, year))
+    season_index = next((data.index(row) for row in data if row[0] == season), len(data))
+
+    # check if we need to update data
+    if data[season_index][date_index] == str(snow_depth):
+        print("No new snow depth data. Exiting")
+        return False
+    else:
+        # update copy of data
+        data[season_index][date_index] = snow_depth
+        print("Fresh data. Time for an update")
+
+    # write list to csv string
+    print("Writing data to CSV string")
+    new_csv = StringIO.StringIO()
+    writer = csv.writer(new_csv, quoting=csv.QUOTE_NONNUMERIC)
+    writer.writerows(data)
+
+    print("Compressing data")
+    compressed_csv = StringIO.StringIO()
+    with gzip.GzipFile(fileobj=compressed_csv, mode="w") as f:
+        f.write(new_csv.getvalue())
+
+    print("Pushing to S3")
+    s3.Object("matthewparrilla.com", SNOW_DEPTH_CSV).put(
+        Body=compressed_csv.getvalue(),
+        ContentEncoding='gzip',
+        ACL="public-read")
 
 
 # @app.route('/')
@@ -27,118 +102,52 @@ def index(event):
 
     date = None
     snow_idx = 0
+    temp_idx = 0
+    max_temp = None
+    min_temp = None
+    cur_temp = None
     snow_depth = None
     for line in pre.get_text().split('\n'):
         try:
             # date is of format "1000 AM EST Sun Feb 10 2019"
             date = arrow.get(line, "MMM D YYYY").datetime
-            print "Date on NWS report is: %s" % date
+            print("Date on NWS report is: {}".format(date))
             continue
         except arrow.parser.ParserError as e:
             # Most lines will throw value error, don't even log
             pass
         if line.startswith("Station") and "Snow" in line:
             snow_idx = line.index("Snow")
+            temp_idx = line.index("Temperature")
             continue
         if line.startswith("Mount Mansfield"):
             try:
                 depth_str = line[snow_idx:snow_idx + 4]
-                print depth_str
                 snow_depth = int(depth_str)
-                print snow_depth
+                print("Snow depth: {}".format(snow_depth))
             except ValueError:
-                print "Error trying to convert string: %s to int" % depth_str
+                print("Error trying to convert string: %s to int").format(depth_str)
+
+            try:
+                temp_str = line[temp_idx:temp_idx + 11]
+                max_temp, min_temp, cur_temp = [int(i)
+                    for i in temp_str.split(' ')
+                    if i]  # `if i` gets rid of empty strings
+                print("Max temp: {}".format(max_temp))
+                print("Min temp: {}".format(min_temp))
+                print("Cur temp: {}".format(cur_temp))
+            except ValueError:
+                print("Error trying to convert {} into temps".format(temp_str))
 
     # exit if date is none
     if not date:
-        print "Unable to parse date from NWS report"
+        print.format("Unable to parse date from NWS report")
         return "No date found"
 
-    # exit if we don't get a reported depth
-    if snow_depth != 0 and not snow_depth:
-        print "No depth in current text report"
-        return "No new depth"
+    update_temp(max_temp, min_temp, cur_temp, date)
+    update_snow_depth(snow_depth, date)
 
-    # get current data from s3
-    existing_data = s3.Object(bucket_name='matthewparrilla.com',
-        key='snowDepth.csv')\
-        .get()\
-        .get('Body')\
-        .read()
-    uncompressed_file = gzip.GzipFile(fileobj=StringIO.StringIO(existing_data)).read()
-
-    # csv string returns a list of lists [['9/1', 0], ...]
-    data = [i for i in csv_string_to_list(uncompressed_file) if len(i) > 0]
-
-    # figure out what cell to update
-    date_string = date.strftime("%-m/%-d")
-    print "Date to update: %s" % date_string
-    date_index = data[0].index(date_string)
-    year = date.year
-    season = "%d-%d" % (
-        (year, year + 1) if date.month > 7 else (year - 1, year))
-    season_index = next((data.index(row) for row in data if row[0] == season), len(data))
-
-    # --------------BEGIN EMAIL NOTIFICATION-----------------------------------
-    try:
-        SENDER = "Mansfield <support@bugbucket.io>"
-        CHARSET = "UTF-8"
-        client = boto3.client("ses")
-
-        # Provide the contents of the email.
-        client.send_email(
-            Destination={
-                'ToAddresses': ['matthew.parrilla@gmail.com'],
-            },
-            Message={
-                'Body': {
-                    'Text': {
-                        'Charset': CHARSET,
-                        'Data': "Date: %s Depth: %d" % (date_string, snow_depth)
-
-                    },
-                },
-                'Subject': {
-                    'Charset': CHARSET,
-                    'Data': "mansfield snow depth",
-                },
-            },
-            Source=SENDER,
-        )
-        print("Email sent!")
-
-    # Display an error if something goes wrong.
-    except ClientError as e:
-        print(e.response['Error']['Message'])
-    # --------------END EMAIL NOTIFICATION-------------------------------------
-
-    # check if we need to update data
-    if data[season_index][date_index] == str(snow_depth):
-        print "No new data. Exiting"
-        return False
-    else:
-        # update copy of data
-        data[season_index][date_index] = snow_depth
-        print "Fresh data. Time for an update"
-
-    # write list to csv string
-    print "Writing data to CSV string"
-    new_csv = StringIO.StringIO()
-    writer = csv.writer(new_csv, quoting=csv.QUOTE_NONNUMERIC)
-    writer.writerows(data)
-
-    print "Compressing data"
-    compressed_csv = StringIO.StringIO()
-    with gzip.GzipFile(fileobj=compressed_csv, mode="w") as f:
-        f.write(new_csv.getvalue())
-
-    print "Pushing to S3"
-    s3.Object("matthewparrilla.com", "snowDepth.csv").put(
-        Body=compressed_csv.getvalue(),
-        ContentEncoding='gzip',
-        ACL="public-read")
-
-    return "Great success!"
+    return {"Result": "Great success!"}
 
 
 @app.route("/dummy")
@@ -152,8 +161,8 @@ def dummy():
         ddb.get_object(Bucket="matthewparrilla.com")
         ddb.put_object(Bucket="matthewparrilla.com")
         ddb.put_object_acl(Bucket="matthewparrilla.com", ACL="public-read")
-    except:
-        print "move along"
+    except Exception as e:
+        print("move along")
 
 
 def csv_string_to_list(csv_as_string):
