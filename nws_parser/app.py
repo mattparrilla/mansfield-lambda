@@ -13,10 +13,34 @@ app = Chalice(app_name='nws_parser')
 app.debug = True
 
 TEMPERATURE_CSV = "mansfield_temperature.csv"
+OBSERVATIONS_CSV = "mansfield_observations.csv"
 SNOW_DEPTH_CSV = "snowDepth.csv"
 
 
 s3 = boto3.resource('s3')
+
+
+def update_observation(data):
+    print("Updating current observation data")
+
+    observation_data = s3.Object(bucket_name='matthewparrilla.com',
+        key=OBSERVATIONS_CSV).get().get('Body').read().decode("ascii")
+
+    # last observation is at -2 b/c each observation ends w/ newline
+    last_observation = observation_data.split('\n')[-2]
+    timestamp = arrow.get(last_observation.split(',')[0])
+
+    for observation in data:
+        if arrow.get(observation["timestamp"]) > timestamp:
+            observation_data += "{},{},{},{},{}\n".format(
+                observation["timestamp"].isoformat(),
+                observation["temperature"],
+                observation["direction"],
+                observation["wind"],
+                observation["gust"])
+
+    s3.Object("matthewparrilla.com", OBSERVATIONS_CSV).put(
+        Body=observation_data)
 
 
 def update_temp(max_temp, min_temp, cur_temp, date):
@@ -25,6 +49,8 @@ def update_temp(max_temp, min_temp, cur_temp, date):
         return
     print("Updating temperature data")
 
+    # TODO: this puts whole CSV into memory, probably shouldn't do that,
+    # should just append since we aren't even doing anything with it but appending
     data = s3.Object(bucket_name='matthewparrilla.com',
         key=TEMPERATURE_CSV).get().get('Body').read().decode("ascii")
     data += "{},{},{},{},{}\n".format(datetime.now().isoformat(),
@@ -147,6 +173,36 @@ def index(event):
     update_temp(max_temp, min_temp, cur_temp, date)
     update_snow_depth(snow_depth, date)
 
+    return {"Result": "Great success!"}
+
+
+# @app.route('/wind')
+# def wind():
+@app.schedule(Rate(1, unit=Rate.HOURS))
+def wind(event):
+    url = "https://www.weather.gov/btv/mansfield"
+    r = requests.get(url)
+    html = r.text
+    parsed_html = BeautifulSoup(html, "html.parser")
+    tbody = parsed_html.body.find("tbody")
+
+    rows = tbody.find_all("tr")[1:]  # first element is table head
+    data = []
+    for row in rows:
+        [timestamp, temperature, direction, wind, gust] = [el.get_text() for el in row.find_all("td")]
+        timestamp_format = "YYYY-MM-DD HH:mm:ss"
+        # greater than or equal too b/c whitespace
+        if len(timestamp) >= len(timestamp_format):
+            data.append({
+                "timestamp": arrow.get(timestamp, timestamp_format).datetime,
+                "temperature": int(temperature),
+                "direction": int(direction),
+                "wind": int(direction),
+                "gust": int(gust)
+            })
+
+    data.reverse()
+    update_observation(data)
     return {"Result": "Great success!"}
 
 
