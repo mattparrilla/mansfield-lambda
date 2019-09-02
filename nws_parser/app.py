@@ -90,13 +90,21 @@ def update_snow_depth(snow_depth, date):
     season_index = next((data.index(row) for row in data if row[0] == season), len(data))
 
     # check if we need to update data
-    if data[season_index][date_index] == str(snow_depth):
-        print("No new snow depth data. Exiting")
-        return False
-    else:
-        # update copy of data
-        data[season_index][date_index] = snow_depth
-        print("Fresh data. Time for an update")
+    try:
+        if data[season_index][date_index] == str(snow_depth):
+            print("No new snow depth data. Exiting")
+            return False
+        else:
+            # update copy of data
+            data[season_index][date_index] = snow_depth
+            print("Fresh data. Time for an update")
+
+    # this is our first entry for the year
+    except IndexError:
+        print("season_index: {}".format(season_index))
+        print("date_index: {}".format(date_index))
+        print(data[-1])
+        data[season_index] = [snow_depth]
 
     # write list to csv string
     print("Writing data to CSV string")
@@ -170,7 +178,6 @@ def index(event):
         print.format("Unable to parse date from NWS report")
         return "No date found"
 
-    update_temp(max_temp, min_temp, cur_temp, date)
     update_snow_depth(snow_depth, date)
 
     return {"Result": "Great success!"}
