@@ -18,13 +18,13 @@
       "resource_type": "cloudwatch_event"
     },
     {
-      "lambda_arn": "arn:aws:lambda:us-east-1:884063687224:function:nws_parser-dev-wind",
-      "name": "wind",
+      "lambda_arn": "arn:aws:lambda:us-east-1:884063687224:function:nws_parser-dev-observation",
+      "name": "observation",
       "resource_type": "lambda_function"
     },
     {
-      "rule_name": "nws_parser-dev-wind-event",
-      "name": "wind-event",
+      "rule_name": "nws_parser-dev-observation-event",
+      "name": "observation-event",
       "resource_type": "cloudwatch_event"
     },
     {

@@ -31,7 +31,9 @@ def update_observation(data):
     timestamp = arrow.get(last_observation.split(',')[0])
 
     for observation in data:
-        if arrow.get(observation["timestamp"]) > timestamp:
+        observation_timestamp = observation["timestamp"]
+        if arrow.get(observation_timestamp) > timestamp:
+            print("Adding observation for: {}".format(observation_timestamp))
             observation_data += "{},{},{},{},{}\n".format(
                 observation["timestamp"].isoformat(),
                 observation["temperature"],
@@ -186,7 +188,7 @@ def index(event):
 # @app.route('/wind')
 # def wind():
 @app.schedule(Rate(1, unit=Rate.HOURS))
-def wind(event):
+def observation(event):
     url = "https://www.weather.gov/btv/mansfield"
     r = requests.get(url)
     html = r.text
