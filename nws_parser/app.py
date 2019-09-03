@@ -1,7 +1,6 @@
 from __future__ import print_function
 from chalice import Chalice, Rate
 from bs4 import BeautifulSoup
-from datetime import datetime
 import arrow
 import requests
 import boto3
@@ -45,26 +44,6 @@ def update_observation(data):
         Body=observation_data)
 
 
-def update_temp(max_temp, min_temp, cur_temp, date):
-    if max_temp is None:
-        print("No temps in current text report")
-        return
-    print("Updating temperature data")
-
-    # TODO: this puts whole CSV into memory, probably shouldn't do that,
-    # should just append since we aren't even doing anything with it but appending
-    data = s3.Object(bucket_name='matthewparrilla.com',
-        key=TEMPERATURE_CSV).get().get('Body').read().decode("ascii")
-    data += "{},{},{},{},{}\n".format(datetime.now().isoformat(),
-        date,
-        max_temp,
-        min_temp,
-        cur_temp)
-
-    s3.Object("matthewparrilla.com", TEMPERATURE_CSV).put(
-        Body=data)
-
-
 def update_snow_depth(snow_depth, date):
     # exit if we don't get a reported depth
     if snow_depth is None:
@@ -91,6 +70,11 @@ def update_snow_depth(snow_depth, date):
         (year, year + 1) if date.month > 7 else (year - 1, year))
     season_index = next((data.index(row) for row in data if row[0] == season), len(data))
 
+    # it's our first day of the season, add a row
+    if len(data) == season_index:
+        data.append([None] * len(data[0]))
+        data[-1][0] = season
+
     # check if we need to update data
     try:
         if data[season_index][date_index] == str(snow_depth):
@@ -101,12 +85,10 @@ def update_snow_depth(snow_depth, date):
             data[season_index][date_index] = snow_depth
             print("Fresh data. Time for an update")
 
-    # this is our first entry for the year
     except IndexError:
         print("season_index: {}".format(season_index))
-        print("date_index: {}".format(date_index))
-        print(data[-1])
-        data[season_index] = [snow_depth]
+        print("date_index:   {}".format(date_index))
+        print("len(data):    {}".format(len(data)))
 
     # write list to csv string
     print("Writing data to CSV string")
@@ -206,7 +188,7 @@ def observation(event):
                 "timestamp": arrow.get(timestamp, timestamp_format).datetime,
                 "temperature": int(temperature),
                 "direction": int(direction),
-                "wind": int(direction),
+                "wind": int(wind),
                 "gust": int(gust)
             })
 
