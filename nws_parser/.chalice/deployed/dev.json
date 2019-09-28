@@ -8,13 +8,13 @@
       "resource_type": "iam_role"
     },
     {
-      "lambda_arn": "arn:aws:lambda:us-east-1:884063687224:function:nws_parser-dev-index",
-      "name": "index",
+      "lambda_arn": "arn:aws:lambda:us-east-1:884063687224:function:nws_parser-dev-snow_depth",
+      "name": "snow_depth",
       "resource_type": "lambda_function"
     },
     {
-      "rule_name": "nws_parser-dev-index-event",
-      "name": "index-event",
+      "rule_name": "nws_parser-dev-snow_depth-event",
+      "name": "snow_depth-event",
       "resource_type": "cloudwatch_event"
     },
     {

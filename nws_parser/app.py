@@ -19,29 +19,51 @@ SNOW_DEPTH_CSV = "snowDepth.csv"
 s3 = boto3.resource('s3')
 
 
+def data_to_csv_on_s3(data, filename):
+    """Write data to CSV, gzipping and pushing to S3 at filepath"""
+
+    # write list to csv string
+    print("Writing data to CSV string")
+    new_csv = StringIO.StringIO()
+    writer = csv.writer(new_csv, quoting=csv.QUOTE_NONNUMERIC)
+    writer.writerows(data)
+
+    print("Compressing data")
+    compressed_csv = StringIO.StringIO()
+    with gzip.GzipFile(fileobj=compressed_csv, mode="w") as f:
+        f.write(new_csv.getvalue())
+
+    print("Pushing to S3")
+    s3.Object("matthewparrilla.com", filename).put(
+        Body=compressed_csv.getvalue(),
+        ContentEncoding='gzip',
+        ACL="public-read")
+
+
 def update_observation(data):
     print("Updating current observation data")
 
-    observation_data = s3.Object(bucket_name='matthewparrilla.com',
-        key=OBSERVATIONS_CSV).get().get('Body').read().decode("ascii")
+    existing_data = s3.Object(bucket_name='matthewparrilla.com',
+        key=OBSERVATIONS_CSV).get().get('Body').read()
 
-    # last observation is at -2 b/c each observation ends w/ newline
-    last_observation = observation_data.split('\n')[-2]
-    timestamp = arrow.get(last_observation.split(',')[0])
+    observation_data = gzip.GzipFile(fileobj=StringIO.StringIO(existing_data)).read()
+
+    data_as_list = [i for i in csv_string_to_list(observation_data) if len(i) > 0]
+    last_observation = data_as_list[-1]
+    timestamp = arrow.get(last_observation[0])
 
     for observation in data:
         observation_timestamp = observation["timestamp"]
         if arrow.get(observation_timestamp) > timestamp:
             print("Adding observation for: {}".format(observation_timestamp))
-            observation_data += "{},{},{},{},{}\n".format(
+            data_as_list.append([
                 observation["timestamp"].isoformat(),
                 observation["temperature"],
                 observation["direction"],
                 observation["wind"],
-                observation["gust"])
+                observation["gust"]])
 
-    s3.Object("matthewparrilla.com", OBSERVATIONS_CSV).put(
-        Body=observation_data)
+    data_to_csv_on_s3(data_as_list, OBSERVATIONS_CSV)
 
 
 def update_snow_depth(snow_depth, date):
@@ -90,28 +112,13 @@ def update_snow_depth(snow_depth, date):
         print("date_index:   {}".format(date_index))
         print("len(data):    {}".format(len(data)))
 
-    # write list to csv string
-    print("Writing data to CSV string")
-    new_csv = StringIO.StringIO()
-    writer = csv.writer(new_csv, quoting=csv.QUOTE_NONNUMERIC)
-    writer.writerows(data)
-
-    print("Compressing data")
-    compressed_csv = StringIO.StringIO()
-    with gzip.GzipFile(fileobj=compressed_csv, mode="w") as f:
-        f.write(new_csv.getvalue())
-
-    print("Pushing to S3")
-    s3.Object("matthewparrilla.com", SNOW_DEPTH_CSV).put(
-        Body=compressed_csv.getvalue(),
-        ContentEncoding='gzip',
-        ACL="public-read")
+    data_to_csv_on_s3(data, SNOW_DEPTH_CSV)
 
 
-# @app.route('/')
-# def index():
+# @app.route('/snow_depth')
+# def snow_depth():
 @app.schedule(Rate(1, unit=Rate.HOURS))
-def index(event):
+def snow_depth(event):
     url = "https://forecast.weather.gov/product.php?site=BTV&issuedby=BTV&product=HYD&format=CI&version=1"
     r = requests.get(url)
     html = r.text
@@ -167,8 +174,8 @@ def index(event):
     return {"Result": "Great success!"}
 
 
-# @app.route('/wind')
-# def wind():
+# @app.route('/observation')
+# def observation():
 @app.schedule(Rate(1, unit=Rate.HOURS))
 def observation(event):
     url = "https://www.weather.gov/btv/mansfield"
