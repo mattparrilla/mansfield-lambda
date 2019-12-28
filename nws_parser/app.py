@@ -14,6 +14,7 @@ app.debug = True
 TEMPERATURE_CSV = "mansfield_temperature.csv"
 OBSERVATIONS_CSV = "mansfield_observations.csv"
 SNOW_DEPTH_CSV = "snowDepth.csv"
+AVG_SEASON = "Average Season"
 
 
 s3 = boto3.resource('s3')
@@ -111,6 +112,8 @@ def update_snow_depth(snow_depth, date):
         print("season_index: {}".format(season_index))
         print("date_index:   {}".format(date_index))
         print("len(data):    {}".format(len(data)))
+
+    data = calculate_average([d for d in data if d[0] != AVG_SEASON])
 
     data_to_csv_on_s3(data, SNOW_DEPTH_CSV)
 
@@ -221,3 +224,36 @@ def dummy():
 
 def csv_string_to_list(csv_as_string):
     return list(csv.reader(csv_as_string.split("\n"), delimiter=","))
+
+
+def calculate_average(data):
+    """Find the average depth of all seasons across all dates. Expects data
+       to be a list of seasons where the first item in each
+       season is the name of the season and the first row in the data is
+       a header row"""
+    avg_season = [None] * len(data[0])
+    avg_season[0] = AVG_SEASON
+
+    # iterate through each date
+    for i, d in enumerate(data[0]):
+        if i == 0:  # first item is label
+            continue
+        depths = 0
+        depth_count = 0
+        # iterate through seasons
+        for j, season in enumerate(data):
+            if j == 0:  # first item is header row
+                continue
+            # If we have no data, don't use in average. No data values are an
+            # empty string. In this case, since the data returned is a string
+            # '0' won't get filtered out
+            elif not season[i]:
+                continue
+            else:
+                depths += int(season[i])
+                depth_count += 1
+
+        avg_season[i] = depths / depth_count
+
+    data.append(avg_season)
+    return data
