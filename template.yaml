@@ -1,0 +1,35 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: 'AWS::Serverless-2016-10-31'
+Description: AWS SAM Template for NWS Parser
+
+Resources:
+  SnowDepthFunction:
+    Type: 'AWS::Serverless::Function'
+    Properties:
+      Handler: app.snow_depth
+      Runtime: python3.12
+      Events:
+        ScheduledEvent:
+          Type: Schedule
+          Properties:
+            Schedule: rate(1 hour)
+
+  ObservationFunction:
+    Type: 'AWS::Serverless::Function'
+    Properties:
+      Handler: app.observation
+      Runtime: python3.12
+      Events:
+        ScheduledEvent:
+          Type: Schedule
+          Properties:
+            Schedule: rate(1 hour)
+
+Outputs:
+  SnowDepthFunction:
+    Description: "Snow Depth Lambda Function ARN"
+    Value: !GetAtt SnowDepthFunction.Arn
+
+  ObservationFunction:
+    Description: "Observation Lambda Function ARN"
+    Value: !GetAtt ObservationFunction.Arn

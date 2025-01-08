@@ -3,6 +3,7 @@ import boto3
 import shutil
 import argparse
 
+boto3.setup_default_session(profile_name="personal")
 s3 = boto3.resource('s3')
 
 

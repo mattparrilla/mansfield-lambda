@@ -3,3 +3,6 @@ node_modules
 index.js
 venv
 *.pyc
+.aws-sam
+*:Zone.Identifier
+*.gz
