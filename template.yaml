@@ -6,7 +6,21 @@ Resources:
   SnowDepthFunction:
     Type: 'AWS::Serverless::Function'
     Properties:
-      Handler: app.snow_depth
+      Handler: nws_parser.snow_depth
+      Runtime: python3.12
+      Events:
+        ScheduledEvent:
+          Type: Schedule
+          Properties:
+            Schedule: rate(1 hour)
+      Environment:
+        Variables:
+          SNS_TOPIC_ARN: !Ref SNSTopic
+
+  ObservationFunction:
+    Type: 'AWS::Serverless::Function'
+    Properties:
+      Handler: nws_parser.observation
       Runtime: python3.12
       Events:
         ScheduledEvent:
@@ -14,16 +28,12 @@ Resources:
           Properties:
             Schedule: rate(1 hour)
 
-  ObservationFunction:
-    Type: 'AWS::Serverless::Function'
+  SNSTopic:
+    Type: 'AWS::SNS::Topic'
     Properties:
-      Handler: app.observation
-      Runtime: python3.12
-      Events:
-        ScheduledEvent:
-          Type: Schedule
-          Properties:
-            Schedule: rate(1 hour)
+      Subscription:
+        - Endpoint: "matthew.parrilla@gmail.com"
+          Protocol: "email"
 
 Outputs:
   SnowDepthFunction:
@@ -33,3 +43,7 @@ Outputs:
   ObservationFunction:
     Description: "Observation Lambda Function ARN"
     Value: !GetAtt ObservationFunction.Arn
+
+  SNSTopic:
+    Description: "SNS Topic ARN for error notifications"
+    Value: !Ref SNSTopic
