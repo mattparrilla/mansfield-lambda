@@ -6,17 +6,31 @@ import csv
 import io
 import gzip
 import logging
+import os
 
 TEMPERATURE_CSV = "mansfield_temperature.csv"
 OBSERVATIONS_CSV = "mansfield_observations.csv"
-SNOW_DEPTH_CSV_WRITE = "snowDepth2.csv"  # Update to save to snowDepth2.csv
-SNOW_DEPTH_CSV_READ = "snowDepth.csv"  # Read from snowDepth.csv
+SNOW_DEPTH_CSV = "snowDepth2.csv"
 AVG_SEASON = "Average Season"
 
 s3 = boto3.resource('s3')
-
+sns = boto3.client('sns')
+SNS_TOPIC_ARN = os.getenv('SNS_TOPIC_ARN')
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
+
+
+def send_error_notification(error_message):
+    """Send error notification to SNS topic"""
+    try:
+        sns.publish(
+            TopicArn=SNS_TOPIC_ARN,
+            Subject='Mount Mansfield Weather Station Error',
+            Message=error_message
+        )
+    except Exception as e:
+        logger.error(f"Failed to send SNS notification: {str(e)}")
+
 
 def data_to_csv_on_s3(data, filename):
     """Write data to CSV, gzipping and pushing to S3 at filepath"""
@@ -71,7 +85,7 @@ def update_snow_depth(snow_depth, date):
 
     # get current data from s3
     existing_data = s3.Object(bucket_name='matthewparrilla.com',
-        key=SNOW_DEPTH_CSV_READ)\
+        key=SNOW_DEPTH_CSV)\
         .get()\
         .get('Body')\
         .read()
@@ -111,7 +125,7 @@ def update_snow_depth(snow_depth, date):
 
     data = calculate_average([d for d in data if d[0] != AVG_SEASON])
 
-    data_to_csv_on_s3(data, SNOW_DEPTH_CSV_WRITE)
+    data_to_csv_on_s3(data, SNOW_DEPTH_CSV)
 
 def csv_string_to_list(csv_as_string):
     return list(csv.reader(csv_as_string.split("\n"), delimiter=","))
@@ -190,10 +204,6 @@ def snow_depth(event, context):
 
     date = None
     snow_idx = 0
-    temp_idx = 0
-    max_temp = None
-    min_temp = None
-    cur_temp = None
     snow_depth = None
     for line in pre.get_text().split('\n'):
         try:
@@ -201,7 +211,7 @@ def snow_depth(event, context):
             date = arrow.get(line, "MMM D YYYY").datetime
             print("Date on NWS report is: {}".format(date))
             continue
-        except arrow.parser.ParserError as e:
+        except arrow.parser.ParserError:
             # Most lines will throw value error, don't even log
             pass
         if line.startswith("Station") and "Snow" in line:
@@ -213,27 +223,19 @@ def snow_depth(event, context):
                 depth_str = line[snow_idx:snow_idx + 4]
                 snow_depth = int(depth_str)
                 print("Snow depth: {}".format(snow_depth))
-            except ValueError:
-                logger.error("Failed to convert string: {} to int".format(depth_str))
+            except ValueError as e:
+                error_msg = f"Failed to convert string: {depth_str} to int"
+                logger.error(error_msg)
+                send_error_notification(error_msg)
+                return {"Result": "No depth read."}
 
-            try:
-                temp_str = line[temp_idx:temp_idx + 11]
-                max_temp, min_temp, cur_temp = [int(i)
-                    for i in temp_str.split(' ')
-                    if i]  # `if i` gets rid of empty strings
-                print("Max temp: {}".format(max_temp))
-                print("Min temp: {}".format(min_temp))
-                print("Cur temp: {}".format(cur_temp))
-            except ValueError:
-                logger.error("Failed to convert {} into temps".format(temp_str))
-
-    # exit if date is none
     if not date:
-        print("Unable to parse date from NWS report")
+        error_msg = "Unable to parse date from NWS report"
+        print(error_msg)
+        send_error_notification(error_msg)
         return {"Result": "No date found"}
 
     update_snow_depth(snow_depth, date)
-
     return {"Result": "Great success!"}
 
 def observation(event, context):

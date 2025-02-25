@@ -16,6 +16,9 @@ Resources:
       Environment:
         Variables:
           SNS_TOPIC_ARN: !Ref SNSTopic
+      Policies:
+        - SNSPublishMessagePolicy:
+            TopicName: !GetAtt SNSTopic.TopicName
 
   ObservationFunction:
     Type: 'AWS::Serverless::Function'
@@ -27,6 +30,12 @@ Resources:
           Type: Schedule
           Properties:
             Schedule: rate(1 hour)
+      Environment:
+        Variables:
+          SNS_TOPIC_ARN: !Ref SNSTopic
+      Policies:
+        - SNSPublishMessagePolicy:
+            TopicName: !GetAtt SNSTopic.TopicName
 
   SNSTopic:
     Type: 'AWS::SNS::Topic'
