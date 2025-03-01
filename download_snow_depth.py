@@ -17,7 +17,7 @@ def download_snow_depth():
     uncompressed_data = gzip.GzipFile(fileobj=io.BytesIO(compressed_data)).read().decode('utf-8')
     
     # Generate the filename with a datestamp
-    datestamp = datetime.now().strftime('%d%m%Y')
+    datestamp = datetime.now().strftime('%Y%m%d')
     filename = f'snowDepth-{datestamp}.bak.csv'
     
     # Write the uncompressed data to a local file

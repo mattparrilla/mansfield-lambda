@@ -34,23 +34,28 @@ def send_error_notification(error_message):
 
 def data_to_csv_on_s3(data, filename):
     """Write data to CSV, gzipping and pushing to S3 at filepath"""
+    try:
+        # write list to csv string
+        print("Writing data to CSV string")
+        new_csv = io.StringIO()
+        writer = csv.writer(new_csv, quoting=csv.QUOTE_NONNUMERIC)
+        writer.writerows(data)
 
-    # write list to csv string
-    print("Writing data to CSV string")
-    new_csv = io.StringIO()
-    writer = csv.writer(new_csv, quoting=csv.QUOTE_NONNUMERIC)
-    writer.writerows(data)
+        print("Compressing data")
+        compressed_csv = io.BytesIO()
+        with gzip.GzipFile(fileobj=compressed_csv, mode="w") as f:
+            f.write(new_csv.getvalue().encode('utf-8'))
 
-    print("Compressing data")
-    compressed_csv = io.BytesIO()
-    with gzip.GzipFile(fileobj=compressed_csv, mode="w") as f:
-        f.write(new_csv.getvalue().encode('utf-8'))
-
-    print("Pushing to S3")
-    s3.Object("matthewparrilla.com", filename).put(
-        Body=compressed_csv.getvalue(),
-        ContentEncoding='gzip',
-        ACL="public-read")
+        print("Pushing to S3")
+        s3.Object("matthewparrilla.com", filename).put(
+            Body=compressed_csv.getvalue(),
+            ContentEncoding='gzip',
+            ACL="public-read")
+    except Exception as e:
+        error_msg = f"Failed to write to S3: {str(e)}"
+        logger.error(error_msg)
+        send_error_notification(error_msg)
+        raise e
 
 def update_observation(data):
     print("Updating current observation data")

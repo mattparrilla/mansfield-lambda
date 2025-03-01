@@ -19,6 +19,8 @@ Resources:
       Policies:
         - SNSPublishMessagePolicy:
             TopicName: !GetAtt SNSTopic.TopicName
+        - S3WritePolicy:
+            BucketName: matthewparrilla.com
 
   ObservationFunction:
     Type: 'AWS::Serverless::Function'
@@ -36,6 +38,8 @@ Resources:
       Policies:
         - SNSPublishMessagePolicy:
             TopicName: !GetAtt SNSTopic.TopicName
+        - S3WritePolicy:
+            BucketName: matthewparrilla.com
 
   SNSTopic:
     Type: 'AWS::SNS::Topic'
