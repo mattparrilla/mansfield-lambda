@@ -219,17 +219,15 @@ def snow_depth(event, context):
         except arrow.parser.ParserError:
             # Most lines will throw value error, don't even log
             pass
-        if line.startswith("Station") and "Snow" in line:
-            snow_idx = line.index("Snow")
-            temp_idx = line.index("Temperature")
-            continue
         if line.startswith("Mount Mansfield"):
             try:
-                depth_str = line[snow_idx:snow_idx + 4]
+                # Split on whitespace and get last non-empty value
+                parts = [p for p in line.split() if p]
+                depth_str = parts[-1]
                 snow_depth = int(depth_str)
                 print("Snow depth: {}".format(snow_depth))
-            except ValueError as e:
-                error_msg = f"Failed to convert string: {depth_str} to int"
+            except (ValueError, IndexError) as e:
+                error_msg = f"Failed to parse snow depth from line: {line}"
                 logger.error(error_msg)
                 send_error_notification(error_msg)
                 return {"Result": "No depth read."}
