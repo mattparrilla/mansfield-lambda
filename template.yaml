@@ -3,6 +3,48 @@ Transform: 'AWS::Serverless-2016-10-31'
 Description: AWS SAM Template for NWS Parser
 
 Resources:
+  # DynamoDB Table for Observations
+  ObservationsTable:
+    Type: 'AWS::DynamoDB::Table'
+    Properties:
+      TableName: MountMansfieldObservations
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: station
+          AttributeType: S
+        - AttributeName: timestamp
+          AttributeType: S
+      KeySchema:
+        - AttributeName: station
+          KeyType: HASH
+        - AttributeName: timestamp
+          KeyType: RANGE
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+
+  # Lambda Function for NWS Observations
+  ObservationsFunction:
+    Type: 'AWS::Serverless::Function'
+    Properties:
+      Handler: nws_observations.lambda_handler
+      Runtime: python3.12
+      Timeout: 30
+      Events:
+        ScheduledEvent:
+          Type: Schedule
+          Properties:
+            Schedule: rate(5 minutes)
+      Environment:
+        Variables:
+          OBSERVATIONS_TABLE_NAME: !Ref ObservationsTable
+          SNS_TOPIC_ARN: !Ref SNSTopic
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ObservationsTable
+        - SNSPublishMessagePolicy:
+            TopicName: !GetAtt SNSTopic.TopicName
+
+  # Lambda Function for Snow Depth
   SnowDepthFunction:
     Type: 'AWS::Serverless::Function'
     Properties:
@@ -21,6 +63,8 @@ Resources:
             TopicName: !GetAtt SNSTopic.TopicName
         - S3WritePolicy:
             BucketName: matthewparrilla.com
+
+  # SNS Topic for Error Notifications
   SNSTopic:
     Type: 'AWS::SNS::Topic'
     Properties:
@@ -29,6 +73,14 @@ Resources:
           Protocol: "email"
 
 Outputs:
+  ObservationsTable:
+    Description: "DynamoDB Table for Mount Mansfield Observations"
+    Value: !Ref ObservationsTable
+
+  ObservationsFunction:
+    Description: "Observations Lambda Function ARN"
+    Value: !GetAtt ObservationsFunction.Arn
+
   SnowDepthFunction:
     Description: "Snow Depth Lambda Function ARN"
     Value: !GetAtt SnowDepthFunction.Arn
