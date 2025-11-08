@@ -10,7 +10,7 @@ import os
 
 TEMPERATURE_CSV = "mansfield_temperature.csv"
 OBSERVATIONS_CSV = "mansfield_observations.csv"
-SNOW_DEPTH_CSV = "snowDepth2.csv"
+SNOW_DEPTH_CSV = "snow-depth.csv"
 AVG_SEASON = "Average Season"
 
 s3 = boto3.resource('s3')
@@ -82,10 +82,14 @@ def update_observation(data):
 
     data_to_csv_on_s3(data_as_list, OBSERVATIONS_CSV)
 
-def update_snow_depth(snow_depth, date):
+def update_snow_depth(snow_depth, date, test_mode=False):
     # exit if we don't get a reported depth
     if snow_depth is None:
         print("No depth in current text report")
+        return
+
+    if test_mode:
+        print(f"TEST MODE: Would update snow depth to {snow_depth} for date {date}")
         return
 
     # get current data from s3
@@ -200,7 +204,7 @@ def calculate_average_fill_nodata(data):
     data.append(avg_season)
     return data
 
-def snow_depth(event, context):
+def snow_depth(event=None, context=None, test_mode=False):
     url = "https://forecast.weather.gov/product.php?site=BTV&issuedby=BTV&product=HYD&format=CI&version=1"
     r = requests.get(url)
     html = r.text
@@ -227,42 +231,26 @@ def snow_depth(event, context):
                 snow_depth = int(depth_str)
                 print("Snow depth: {}".format(snow_depth))
             except (ValueError, IndexError) as e:
-                error_msg = f"Failed to parse snow depth from line: {line}"
+                if depth_str == 'T':
+                    snow_depth = 0
+                    continue
+                error_msg = f"Failed to parse snow depth. Error: {str(e)}"
                 logger.error(error_msg)
-                send_error_notification(error_msg)
+                if not test_mode:
+                    send_error_notification(error_msg)
                 return {"Result": "No depth read."}
 
     if not date:
         error_msg = "Unable to parse date from NWS report"
         print(error_msg)
-        send_error_notification(error_msg)
+        if not test_mode:
+            send_error_notification(error_msg)
         return {"Result": "No date found"}
 
-    update_snow_depth(snow_depth, date)
+    update_snow_depth(snow_depth, date, test_mode=test_mode)
     return {"Result": "Great success!"}
 
-def observation(event, context):
-    url = "https://www.weather.gov/btv/mansfield"
-    r = requests.get(url)
-    html = r.text
-    parsed_html = BeautifulSoup(html, "html.parser")
-    tbody = parsed_html.body.find("tbody")
-
-    rows = tbody.find_all("tr")[1:]  # first element is table head
-    data = []
-    for row in rows:
-        [timestamp, temperature, direction, wind, gust] = [el.get_text() for el in row.find_all("td")]
-        timestamp_format = "YYYY-MM-DD HH:mm:ss"
-        # greater than or equal too b/c whitespace
-        if len(timestamp) >= len(timestamp_format):
-            data.append({
-                "timestamp": arrow.get(timestamp, timestamp_format).datetime,
-                "temperature": int(temperature),
-                "direction": int(direction),
-                "wind": int(wind),
-                "gust": int(gust)
-            })
-
-    data.reverse()
-    update_observation(data)
-    return {"Result": "Great success!"}
+if __name__ == "__main__":
+    print("Testing NWS parser...")
+    result = snow_depth(test_mode=True)
+    print(f"Result: {result}")

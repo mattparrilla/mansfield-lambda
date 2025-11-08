@@ -21,26 +21,6 @@ Resources:
             TopicName: !GetAtt SNSTopic.TopicName
         - S3WritePolicy:
             BucketName: matthewparrilla.com
-
-  ObservationFunction:
-    Type: 'AWS::Serverless::Function'
-    Properties:
-      Handler: nws_parser.observation
-      Runtime: python3.12
-      Events:
-        ScheduledEvent:
-          Type: Schedule
-          Properties:
-            Schedule: rate(1 hour)
-      Environment:
-        Variables:
-          SNS_TOPIC_ARN: !Ref SNSTopic
-      Policies:
-        - SNSPublishMessagePolicy:
-            TopicName: !GetAtt SNSTopic.TopicName
-        - S3WritePolicy:
-            BucketName: matthewparrilla.com
-
   SNSTopic:
     Type: 'AWS::SNS::Topic'
     Properties:
@@ -52,10 +32,6 @@ Outputs:
   SnowDepthFunction:
     Description: "Snow Depth Lambda Function ARN"
     Value: !GetAtt SnowDepthFunction.Arn
-
-  ObservationFunction:
-    Description: "Observation Lambda Function ARN"
-    Value: !GetAtt ObservationFunction.Arn
 
   SNSTopic:
     Description: "SNS Topic ARN for error notifications"

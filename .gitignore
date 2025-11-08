@@ -6,3 +6,4 @@ venv
 .aws-sam
 *:Zone.Identifier
 *.gz
+tmp/

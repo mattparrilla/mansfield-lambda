@@ -18,7 +18,7 @@ def download_snow_depth():
     
     # Generate the filename with a datestamp
     datestamp = datetime.now().strftime('%Y%m%d')
-    filename = f'snowDepth-{datestamp}.bak.csv'
+    filename = f'snowDepth-{datestamp}.csv.bak'
     
     # Write the uncompressed data to a local file
     with open(filename, 'w') as f:
