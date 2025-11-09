@@ -212,7 +212,7 @@ def snow_depth(event=None, context=None, test_mode=False):
     pre = parsed_html.body.find('pre', attrs={'class': 'glossaryProduct'})
 
     date = None
-    snow_idx = 0
+    total_column_idx = None
     snow_depth = None
     for line in pre.get_text().split('\n'):
         try:
@@ -223,18 +223,43 @@ def snow_depth(event=None, context=None, test_mode=False):
         except arrow.parser.ParserError:
             # Most lines will throw value error, don't even log
             pass
+
+        # Find the header row with "Total" to determine column position
+        if "Total" in line and total_column_idx is None:
+            # Find position of "Total" in the header
+            total_column_idx = line.find("Total")
+            print(f"Found 'Total' column at position {total_column_idx}")
+            continue
+
         if line.startswith("Mount Mansfield"):
+            if total_column_idx is None:
+                error_msg = "Failed to find 'Total' column header before Mount Mansfield data"
+                logger.error(error_msg)
+                if not test_mode:
+                    send_error_notification(error_msg)
+                return {"Result": "No depth read."}
+
             try:
-                # Split on whitespace and get last non-empty value
-                parts = [p for p in line.split() if p]
-                depth_str = parts[-1]
+                # Extract the value at the Total column position
+                # Find the next whitespace-separated value starting at total_column_idx
+                remaining = line[total_column_idx:].strip()
+                parts = remaining.split()
+                if not parts:
+                    logger.warning("No value found in Total column for Mount Mansfield")
+                    return {"Result": "No depth read - Total column empty."}
+
+                depth_str = parts[0]
+
+                # Check if value is 'T' (trace)
+                if depth_str == 'T':
+                    snow_depth = 0
+                    print("Snow depth: 0 (trace)")
+                    continue
+
                 snow_depth = int(depth_str)
                 print("Snow depth: {}".format(snow_depth))
             except (ValueError, IndexError) as e:
-                if depth_str == 'T':
-                    snow_depth = 0
-                    continue
-                error_msg = f"Failed to parse snow depth. Error: {str(e)}"
+                error_msg = f"Failed to parse snow depth from value '{depth_str}'. Error: {str(e)}"
                 logger.error(error_msg)
                 if not test_mode:
                     send_error_notification(error_msg)
