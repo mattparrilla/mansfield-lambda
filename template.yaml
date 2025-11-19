@@ -22,11 +22,30 @@ Resources:
       PointInTimeRecoverySpecification:
         PointInTimeRecoveryEnabled: true
 
-  # Lambda Function for NWS Observations
+  # DynamoDB Table for CoCoRaHS Snow Depth
+  CocorahsTable:
+    Type: 'AWS::DynamoDB::Table'
+    Properties:
+      TableName: CocorahsSnowDepth
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: station
+          AttributeType: S
+        - AttributeName: observation_date
+          AttributeType: S
+      KeySchema:
+        - AttributeName: station
+          KeyType: HASH
+        - AttributeName: observation_date
+          KeyType: RANGE
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+
+  # Lambda Function for Synoptic Observations
   ObservationsFunction:
     Type: 'AWS::Serverless::Function'
     Properties:
-      Handler: nws_observations.lambda_handler
+      Handler: synoptic_observations.lambda_handler
       Runtime: python3.12
       Timeout: 30
       Events:
@@ -38,11 +57,14 @@ Resources:
         Variables:
           OBSERVATIONS_TABLE_NAME: !Ref ObservationsTable
           SNS_TOPIC_ARN: !Ref SNSTopic
+          SYNOPTIC_API_TOKEN: '37e0c2d1cfe44a87acdc78f0aaced374'
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref ObservationsTable
         - SNSPublishMessagePolicy:
             TopicName: !GetAtt SNSTopic.TopicName
+        - S3WritePolicy:
+            BucketName: matthewparrilla.com
 
   # Lambda Function for Snow Depth
   SnowDepthFunction:
@@ -64,6 +86,28 @@ Resources:
         - S3WritePolicy:
             BucketName: matthewparrilla.com
 
+  # Lambda Function for CoCoRaHS Observations
+  CocorahsFunction:
+    Type: 'AWS::Serverless::Function'
+    Properties:
+      Handler: cocorahs_observations.lambda_handler
+      Runtime: python3.12
+      Timeout: 30
+      Events:
+        ScheduledEvent:
+          Type: Schedule
+          Properties:
+            Schedule: rate(1 hour)
+      Environment:
+        Variables:
+          COCORAHS_TABLE_NAME: !Ref CocorahsTable
+          SNS_TOPIC_ARN: !Ref SNSTopic
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref CocorahsTable
+        - SNSPublishMessagePolicy:
+            TopicName: !GetAtt SNSTopic.TopicName
+
   # SNS Topic for Error Notifications
   SNSTopic:
     Type: 'AWS::SNS::Topic'
@@ -77,6 +121,10 @@ Outputs:
     Description: "DynamoDB Table for Mount Mansfield Observations"
     Value: !Ref ObservationsTable
 
+  CocorahsTable:
+    Description: "DynamoDB Table for CoCoRaHS Snow Depth"
+    Value: !Ref CocorahsTable
+
   ObservationsFunction:
     Description: "Observations Lambda Function ARN"
     Value: !GetAtt ObservationsFunction.Arn
@@ -84,6 +132,10 @@ Outputs:
   SnowDepthFunction:
     Description: "Snow Depth Lambda Function ARN"
     Value: !GetAtt SnowDepthFunction.Arn
+
+  CocorahsFunction:
+    Description: "CoCoRaHS Lambda Function ARN"
+    Value: !GetAtt CocorahsFunction.Arn
 
   SNSTopic:
     Description: "SNS Topic ARN for error notifications"

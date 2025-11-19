@@ -3,3 +3,4 @@ beautifulsoup4==4.7.1
 requests==2.32.3
 arrow==0.15.2
 aws-sam-cli==1.132.0
+MesoPy==2.0.3
